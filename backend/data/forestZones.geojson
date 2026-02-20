@@ -1,0 +1,110 @@
+{
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "properties": {
+                "zoneId": "FZ-KANDHAMAL-01",
+                "district": "Kandhamal",
+                "totalArea": 500
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [
+                            83.9,
+                            19.8
+                        ],
+                        [
+                            84.3,
+                            19.8
+                        ],
+                        [
+                            84.3,
+                            20.2
+                        ],
+                        [
+                            83.9,
+                            20.2
+                        ],
+                        [
+                            83.9,
+                            19.8
+                        ]
+                    ]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "zoneId": "FZ-BASTAR-01",
+                "district": "Bastar",
+                "totalArea": 500
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [
+                            81.5,
+                            18.8
+                        ],
+                        [
+                            82.0,
+                            18.8
+                        ],
+                        [
+                            82.0,
+                            19.3
+                        ],
+                        [
+                            81.5,
+                            19.3
+                        ],
+                        [
+                            81.5,
+                            18.8
+                        ]
+                    ]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "zoneId": "FZ-MANDLA-01",
+                "district": "Mandla",
+                "totalArea": 500
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [
+                            80.1,
+                            22.4
+                        ],
+                        [
+                            80.6,
+                            22.4
+                        ],
+                        [
+                            80.6,
+                            22.9
+                        ],
+                        [
+                            80.1,
+                            22.9
+                        ],
+                        [
+                            80.1,
+                            22.4
+                        ]
+                    ]
+                ]
+            }
+        }
+    ]
+}

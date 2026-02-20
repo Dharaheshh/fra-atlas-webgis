@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { Send, FileText, CheckCircle, AlertTriangle, XCircle, Loader2 } from 'lucide-react';
+import { Send, FileText, CheckCircle, AlertTriangle, XCircle, Loader2, MapPin } from 'lucide-react';
 
 interface ClaimStatus {
     id: string;
@@ -8,14 +8,25 @@ interface ClaimStatus {
     conflictPercentage?: number;
 }
 
-const CitizenClaimForm: React.FC = () => {
+interface CitizenClaimFormProps {
+    drawnGeoJSON?: any;
+    districtFilter?: string;
+    onDistrictChange?: (district: string) => void;
+}
+
+const CitizenClaimForm: React.FC<CitizenClaimFormProps> = ({ drawnGeoJSON, districtFilter = "", onDistrictChange }) => {
     const [name, setName] = useState('');
-    const [district, setDistrict] = useState('');
+    const [district, setDistrict] = useState(districtFilter);
     const [area, setArea] = useState('');
 
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<ClaimStatus | null>(null);
     const [error, setError] = useState<string | null>(null);
+
+    const handleDistrictInternal = (val: string) => {
+        setDistrict(val);
+        if (onDistrictChange) onDistrictChange(val);
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -27,7 +38,8 @@ const CitizenClaimForm: React.FC = () => {
             const response = await axios.post('http://localhost:5000/api/simulation/claims/submit', {
                 citizenName: name,
                 district,
-                areaRequested: Number(area)
+                areaRequested: Number(area),
+                geojson: drawnGeoJSON // Include the spatially drawn shape if it exists
             });
 
             if (response.data.claim) {
@@ -41,6 +53,7 @@ const CitizenClaimForm: React.FC = () => {
                 setName('');
                 setDistrict('');
                 setArea('');
+                if (onDistrictChange) onDistrictChange("");
             }
         } catch (err: any) {
             setError(err.response?.data?.error || "Error submitting claim.");
@@ -60,7 +73,7 @@ const CitizenClaimForm: React.FC = () => {
                 Citizen Claim Submission
             </h2>
             <p className="text-sm text-slate-500 mb-6 relative z-10">
-                Submit a simulated land claim for verification. (Max 500 acres available per district).
+                Submit a simulated land claim for verification. Use the Draw tool on the map to provide exact bounds for strict spatial validation.
             </p>
 
             {error && (
@@ -72,8 +85,8 @@ const CitizenClaimForm: React.FC = () => {
 
             {result && (
                 <div className={`mb-6 p-4 rounded-lg border text-sm relative z-10 ${result.status === "Approved" ? "bg-emerald-50 text-emerald-800 border-emerald-100" :
-                        result.status === "Flagged" ? "bg-orange-50 text-orange-800 border-orange-100" :
-                            "bg-red-50 text-red-800 border-red-100"
+                    result.status === "Flagged" ? "bg-orange-50 text-orange-800 border-orange-100" :
+                        "bg-red-50 text-red-800 border-red-100"
                     }`}>
                     <div className="flex items-start gap-2">
                         {result.status === "Approved" ? <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" /> :
@@ -84,11 +97,11 @@ const CitizenClaimForm: React.FC = () => {
                             <p className="font-bold text-base mb-1">Claim {result.id} is {result.status}</p>
                             {result.status === "Flagged" && (
                                 <p className="mt-1 font-medium bg-white/50 inline-block px-2 py-1 rounded text-orange-900 border border-orange-200 shadow-sm">
-                                    Conflict Severity: <span className="font-bold text-red-600">{result.conflictPercentage}%</span> land limit exceeded
+                                    Conflict Severity: <span className="font-bold text-red-600">{result.conflictPercentage}%</span> Severity
                                 </p>
                             )}
                             {result.status === "Approved" && (
-                                <p>Requested area is within the district's available land limits.</p>
+                                <p>Requested area does not overlap and is within the district's limits.</p>
                             )}
                             {result.status === "Rejected" && (
                                 <p>This claim was rejected by a district administrator.</p>
@@ -99,6 +112,25 @@ const CitizenClaimForm: React.FC = () => {
             )}
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4 relative z-10">
+
+                <div className="flex flex-col gap-1.5 mb-2">
+                    <label className="text-sm font-semibold text-slate-700">Spatial Geometry</label>
+                    {drawnGeoJSON ? (
+                        <div className="flex items-center justify-between bg-emerald-50 text-emerald-700 px-3 py-2 rounded-lg border border-emerald-200 text-sm font-medium">
+                            <div className="flex items-center gap-2"><MapPin className="w-4 h-4" /> Polygon Captured</div>
+                            <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('activate-draw'))} className="text-xs underline hover:text-emerald-900">Redraw</button>
+                        </div>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => window.dispatchEvent(new CustomEvent('activate-draw'))}
+                            className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-slate-300 rounded-lg text-slate-600 bg-slate-50 hover:bg-slate-100 hover:border-slate-400 transition-colors text-sm font-medium"
+                        >
+                            <MapPin className="w-4 h-4" /> Click to Draw Boundary on Map
+                        </button>
+                    )}
+                </div>
+
                 <div className="flex flex-col gap-1.5">
                     <label className="text-sm font-semibold text-slate-700">Citizen Full Name</label>
                     <input
@@ -116,11 +148,10 @@ const CitizenClaimForm: React.FC = () => {
                     <select
                         required
                         value={district}
-                        onChange={(e) => setDistrict(e.target.value)}
+                        onChange={(e) => handleDistrictInternal(e.target.value)}
                         className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
                     >
                         <option value="" disabled>Select a district...</option>
-                        {/* We use actual districts from the Phase 1 map data to make the simulation integrate accurately with the risk UI */}
                         <option value="Kandhamal">Kandhamal</option>
                         <option value="Bastar">Bastar</option>
                         <option value="Mandla">Mandla</option>
@@ -139,7 +170,7 @@ const CitizenClaimForm: React.FC = () => {
                         max="2000"
                         value={area}
                         onChange={(e) => setArea(e.target.value)}
-                        placeholder="E.g. 150"
+                        placeholder="E.g. 150 (Auto-calculated if polygon drawn)"
                         className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder:text-slate-400"
                     />
                 </div>

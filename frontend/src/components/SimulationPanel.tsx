@@ -6,17 +6,21 @@ import AdminReviewPanel from './AdminReviewPanel';
 interface SimulationPanelProps {
     isOpen: boolean;
     onClose: () => void;
+    drawnGeoJSON?: any;
+    districtFilter?: string;
+    onDistrictChange?: (district: string) => void;
 }
 
-const SimulationPanel: React.FC<SimulationPanelProps> = ({ isOpen, onClose }) => {
+const SimulationPanel: React.FC<SimulationPanelProps> = ({ isOpen, onClose, drawnGeoJSON, districtFilter, onDistrictChange }) => {
     // Role Toggle State
     const [role, setRole] = useState<'citizen' | 'admin'>('citizen');
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-y-0 left-0 z-[2000] flex items-start justify-start p-4 pointer-events-none w-[450px]">
+            {/* Pointer events none on backing allows interacting with the map while panel is open if we position it */}
+            <div className="pointer-events-auto bg-white rounded-2xl shadow-2xl w-full h-full flex flex-col overflow-hidden animate-in slide-in-from-left-8 duration-300 border border-slate-200">
 
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
@@ -26,7 +30,7 @@ const SimulationPanel: React.FC<SimulationPanelProps> = ({ isOpen, onClose }) =>
                         </div>
                         <div>
                             <h2 className="text-lg font-bold text-slate-800 tracking-tight">System Simulation Layer</h2>
-                            <p className="text-xs text-slate-500 font-medium uppercase tracking-widest">Phase 5 Extension</p>
+                            <p className="text-xs text-slate-500 font-medium uppercase tracking-widest">Phase 6: Spatial Validation Engine</p>
                         </div>
                     </div>
 
@@ -64,7 +68,11 @@ const SimulationPanel: React.FC<SimulationPanelProps> = ({ isOpen, onClose }) =>
                 <div className="flex-1 overflow-y-auto bg-slate-50/50 p-6">
                     {role === 'citizen' ? (
                         <div className="animate-in slide-in-from-bottom-4 duration-300">
-                            <CitizenClaimForm />
+                            <CitizenClaimForm
+                                drawnGeoJSON={drawnGeoJSON}
+                                districtFilter={districtFilter}
+                                onDistrictChange={onDistrictChange}
+                            />
                         </div>
                     ) : (
                         <div className="animate-in slide-in-from-bottom-4 duration-300">

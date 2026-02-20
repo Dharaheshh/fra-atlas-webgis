@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, GeoJSON, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, GeoJSON, useMap, ZoomControl } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
 import L from 'leaflet';
+import SpatialClaimLayer from './SpatialClaimLayer';
 
 // Define the shape of our feature properties
 interface ClaimProperties {
@@ -44,7 +45,17 @@ const styleFeature = (feature: any) => {
     };
 };
 
-const MapComponent: React.FC = () => {
+interface MapComponentProps {
+    isSimulationMode?: boolean;
+    onSimulationShapeDrawn?: (geojson: any) => void;
+    simulationActiveDistrict?: string;
+}
+
+const MapComponent: React.FC<MapComponentProps> = ({
+    isSimulationMode = false,
+    onSimulationShapeDrawn,
+    simulationActiveDistrict = "Kandhamal"
+}) => {
     const [geoData, setGeoData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
@@ -97,8 +108,10 @@ const MapComponent: React.FC = () => {
             <MapContainer
                 center={[20.5937, 78.9629]} // Center of India roughly
                 zoom={5}
+                zoomControl={false}
                 style={{ height: '100%', width: '100%', zIndex: 0 }}
             >
+                <ZoomControl position="bottomright" />
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -113,6 +126,14 @@ const MapComponent: React.FC = () => {
                 )}
 
                 <FitBounds data={geoData} />
+
+                {/* Phase 6 Spatial Simulation Injection Layer (Only active when panel is open) */}
+                {isSimulationMode && onSimulationShapeDrawn && (
+                    <SpatialClaimLayer
+                        onShapeDrawn={onSimulationShapeDrawn}
+                        activeDistrict={simulationActiveDistrict}
+                    />
+                )}
             </MapContainer>
 
             {/* Legend Override Overlay */}

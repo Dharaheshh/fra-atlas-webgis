@@ -198,10 +198,18 @@ Keep the output professional, objective, and no longer than 2-3 paragraphs.`;
 // --- PHASE 5: ISOLATED SIMULATION LAYER ---
 
 const claimsStore = require('./claimsStore');
+const spatialEngine = require('./spatialConflictEngine');
 const SIMULATION_DISTRICT_LIMIT_ACRES = 500;
 
 /**
- * Helper to calculate conflict severity against the static limit
+ * Endpoint to serve static forest zones to the frontend Map
+ */
+app.get('/api/simulation/zones', (req, res) => {
+    res.json(spatialEngine.forestZones);
+});
+
+/**
+ * Phase 5 Fallback Helper
  */
 function calculateConflict(district, newAreaRequested) {
     const allClaims = claimsStore.getClaims();
@@ -234,24 +242,37 @@ function calculateConflict(district, newAreaRequested) {
 // 1. Submit a new claim
 app.post('/api/simulation/claims/submit', (req, res) => {
     try {
-        const { citizenName, district, areaRequested } = req.body;
+        const { citizenName, district, areaRequested, geojson } = req.body;
 
-        if (!citizenName || !district || !areaRequested) {
+        if (!citizenName || !district) {
             return res.status(400).json({ error: "Missing required fields." });
         }
 
-        // Run severity algorithm BEFORE adding to store
-        const severityResult = calculateConflict(district, Number(areaRequested));
+        let severityResult;
+
+        // --- Phase 6 Spatial Validation ---
+        if (geojson) {
+            severityResult = spatialEngine.calculateSpatialConflict(geojson, district);
+        } else {
+            // --- Phase 5 Area Validation (Fallback) ---
+            if (!areaRequested) return res.status(400).json({ error: "Missing area requested." });
+            severityResult = calculateConflict(district, Number(areaRequested));
+        }
 
         const newClaim = claimsStore.addClaim({
             citizenName,
             district,
-            areaRequested,
+            areaRequested: Number(areaRequested) || 0, // In spatial, area might be implicit but we pass it anyway
+            coordinates: geojson ? geojson.geometry.coordinates : null, // Store geometry if drawn
             status: severityResult.status,
-            conflictPercentage: severityResult.conflictPercentage
+            conflictPercentage: severityResult.conflictSeverity || severityResult.conflictPercentage // map keys
         });
 
-        res.json({ message: "Claim processed", claim: newClaim });
+        res.json({
+            message: "Claim processed",
+            claim: newClaim,
+            reason: severityResult.reason || "Auto-checked"
+        });
 
     } catch (err) {
         res.status(500).json({ error: err.message });
