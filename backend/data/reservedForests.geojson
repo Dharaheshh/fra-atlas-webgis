@@ -1,0 +1,40 @@
+{
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "properties": {
+                "zoneId": "RF-KANDHAMAL-01",
+                "district": "Kandhamal",
+                "type": "Reserved"
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [
+                            84.05,
+                            19.95
+                        ],
+                        [
+                            84.15,
+                            19.95
+                        ],
+                        [
+                            84.15,
+                            20.05
+                        ],
+                        [
+                            84.05,
+                            20.05
+                        ],
+                        [
+                            84.05,
+                            19.95
+                        ]
+                    ]
+                ]
+            }
+        }
+    ]
+}

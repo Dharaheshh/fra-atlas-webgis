@@ -228,6 +228,32 @@ function calculateConflict(district, newAreaRequested) {
     }
 }
 
+// 0. Forest Zones Endpoint (Phase 6)
+app.get('/api/simulation/zones', (req, res) => {
+    try {
+        const ZONES_FILE = path.join(__dirname, 'data', 'forestZones.geojson');
+        const rawData = fs.readFileSync(ZONES_FILE, 'utf-8');
+        res.json(JSON.parse(rawData));
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 0.5. Reserved Forest Zones Endpoint (Phase 8)
+app.get('/api/simulation/reserved-zones', (req, res) => {
+    try {
+        const RESERVED_FILE = path.join(__dirname, 'data', 'reservedForests.geojson');
+        if (fs.existsSync(RESERVED_FILE)) {
+            const rawData = fs.readFileSync(RESERVED_FILE, 'utf-8');
+            res.json(JSON.parse(rawData));
+        } else {
+            res.json({ type: 'FeatureCollection', features: [] });
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // 1. Submit a new claim
 app.post('/api/simulation/claims/submit', (req, res) => {
     try {
@@ -342,7 +368,7 @@ app.get('/api/simulation/analytics', (req, res) => {
             if (status === 'Approved') approved_claims++;
             else if (status === 'Pending') pending_claims++;
             else if (status === 'Conflict' || overlap || protectedZone) conflict_claims++;
-            else if (status === 'Flagged') conflict_claims++; // Add flagged logic locally
+            else if (status === 'Flagged' || status === 'Reserved Violation') conflict_claims++; // Add flagged logic locally
 
             // Initialize district
             if (!districts_data[district]) {
@@ -354,7 +380,7 @@ app.get('/api/simulation/analytics', (req, res) => {
             if (status === 'Pending') districts_data[district].pending++;
             else if (status === 'Approved') districts_data[district].approved++;
 
-            if (overlap || protectedZone || status === 'Conflict' || status === 'Flagged') {
+            if (overlap || protectedZone || status === 'Conflict' || status === 'Flagged' || status === 'Reserved Violation') {
                 districts_data[district].conflicts++;
             }
         });
@@ -367,7 +393,14 @@ app.get('/api/simulation/analytics', (req, res) => {
             const pending_pct = (stats.pending / stats.total) * 100;
             const conflict_pct = (stats.conflicts / stats.total) * 100;
 
-            const risk_score = (pending_pct * 0.5) + (conflict_pct * 0.5);
+            let risk_score = (pending_pct * 0.5) + (conflict_pct * 0.5);
+
+            // Phase 8: Reserved Violations Risk Penalty
+            const violationsCount = simulatedClaims.filter(c => c.district === name && c.status === "Reserved Violation").length;
+            if (violationsCount > 0) {
+                risk_score += (violationsCount * 25); // +25 fixed points per violation 
+            }
+
             let risk_level = "High";
             if (risk_score <= 40) risk_level = "Low";
             else if (risk_score <= 70) risk_level = "Moderate";

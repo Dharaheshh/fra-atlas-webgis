@@ -14,16 +14,19 @@ interface SpatialClaimLayerProps {
 const SpatialClaimLayer: React.FC<SpatialClaimLayerProps> = ({ onShapeDrawn, activeDistrict }) => {
     const map = useMap();
     const [zones, setZones] = useState<any>(null);
+    const [reservedZones, setReservedZones] = useState<any>(null);
     const [simulatedClaims, setSimulatedClaims] = useState<any[]>([]);
 
-    // 1. Fetch Zones & Existing Claims
+    // 1. Fetch Zones, Reserved Zones & Existing Claims
     const fetchData = async () => {
         try {
-            const [zonesRes, claimsRes] = await Promise.all([
+            const [zonesRes, reservedRes, claimsRes] = await Promise.all([
                 axios.get('http://localhost:5000/api/simulation/zones'),
+                axios.get('http://localhost:5000/api/simulation/reserved-zones'),
                 axios.get('http://localhost:5000/api/simulation/claims')
             ]);
             setZones(zonesRes.data);
+            setReservedZones(reservedRes.data);
             setSimulatedClaims(claimsRes.data);
         } catch (err) {
             console.error("Failed to load spatial simulation layers", err);
@@ -108,7 +111,7 @@ const SpatialClaimLayer: React.FC<SpatialClaimLayerProps> = ({ onShapeDrawn, act
         };
     }, [map, onShapeDrawn]);
 
-    // 3. Render Static Zones and Simulated Maps Output
+    // 3. Render Static Zones, Reserved Zones, and Simulated Maps Output
     useEffect(() => {
         if (!map || !zones) return;
 
@@ -148,6 +151,36 @@ const SpatialClaimLayer: React.FC<SpatialClaimLayerProps> = ({ onShapeDrawn, act
             map.flyToBounds(boundsToFlyTo, { paddingTopLeft: [450, 50], paddingBottomRight: [50, 50], duration: 1.5 });
         }
 
+        // Add Reserved Forest Sub-Zone Layer (Phase 8)
+        // Rendered with a dark border, stripes pattern, and NO-CLAIM popup
+        if (reservedZones && reservedZones.features && reservedZones.features.length > 0) {
+            const reservedLayer = L.geoJSON(reservedZones, {
+                style: () => ({
+                    color: '#14532d',       // Very dark green border
+                    weight: 3,
+                    fillColor: '#166534',  // Dark forest green fill
+                    fillOpacity: 0.45,
+                    dashArray: '6, 4'      // Striped border to signal no-claim
+                }),
+                onEachFeature: (feature, layer) => {
+                    layer.bindTooltip(`🚫 Reserved Forest – No Claim Zone`, {
+                        permanent: true,
+                        direction: 'center',
+                        className: 'bg-red-950/90 text-white font-bold px-2 py-1 rounded shadow-sm border border-red-900 text-xs'
+                    });
+                    layer.bindPopup(`
+                        <b style="color:#14532d">🔒 Reserved Forest Zone</b><br/>
+                        District: ${feature.properties.district}<br/>
+                        <span style="color:#dc2626;font-weight:bold">⚠ No Claims Permitted</span><br/>
+                        <small>Submitting a claim here will be automatically rejected under Forest Rights Act provisions.</small>
+                    `);
+                }
+            });
+            reservedLayer.addTo(map);
+            reservedLayer.bringToFront();
+            layers.push(reservedLayer);
+        }
+
         // Add Simulated Claims logic from memory store
         // We only render those with coordinates
         const spatialClaims = simulatedClaims.filter(c => c.coordinates && c.coordinates.length > 0);
@@ -160,22 +193,30 @@ const SpatialClaimLayer: React.FC<SpatialClaimLayerProps> = ({ onShapeDrawn, act
 
             const layer = L.geoJSON(polygonData, {
                 style: () => {
-                    if (claim.status === "Approved") return { color: '#059669', fillColor: '#10b981', fillOpacity: 0.6, weight: 2 }; // Green
-                    if (claim.status === "Flagged") return { color: '#dc2626', fillColor: '#ef4444', fillOpacity: 0.6, weight: 2 }; // Red
+                    if (claim.status === "Approved") return { color: '#059669', fillColor: '#10b981', fillOpacity: 0.6, weight: 2 }; // Solid Green
+                    if (claim.status === "Flagged") return { color: '#dc2626', fillColor: '#ef4444', fillOpacity: 0.6, weight: 2 }; // Solid Red
                     if (claim.status === "Rejected") return { color: '#475569', fillColor: '#94a3b8', fillOpacity: 0.4, weight: 1, dashArray: '4' }; // Gray
+                    if (claim.status === "Reserved Violation") return { color: '#1c1917', fillColor: '#44403c', fillOpacity: 0.5, weight: 2, dashArray: '8, 4' }; // Dark gray striped
                     // 'Under Review' or 'Moderate Conflict' maps to the default Yellow pending color to preserve color mechanics
                     return { color: '#d97706', fillColor: '#f59e0b', fillOpacity: 0.5 };
                 },
                 onEachFeature: (_feature, l) => {
-                    // Show the user's name permanently on their drawn shape!
-                    const statusIcon = claim.status === "Flagged" ? "⚠️" : "✅";
+                    // Show the user's name permanently with status-specific icon
+                    const statusIcon = claim.status === "Flagged" ? "⚠️" :
+                        claim.status === "Reserved Violation" ? "🚫" :
+                            claim.status === "Rejected" ? "❌" : "✅";
                     l.bindTooltip(`${statusIcon} ${claim.citizenName}`, { permanent: true, direction: 'center', className: 'font-bold bg-white/90 shadow-sm border border-slate-200 px-2 py-1 rounded text-slate-800' });
+
+                    const statusColor = claim.status === 'Flagged' ? 'red' :
+                        claim.status === 'Reserved Violation' ? '#1c1917' :
+                            claim.status === 'Moderate Conflict' ? 'orange' : 'green';
 
                     l.bindPopup(`
                         <b>Simulated Claim: ${claim.claimId}</b><br/>
                         Applicant: ${claim.citizenName}<br/>
-                        Status: <b style="color:${claim.status === 'Flagged' ? 'red' : claim.status === 'Moderate Conflict' ? 'orange' : 'green'}">${claim.status}</b><br/>
-                        ${claim.conflictPercentage > 0 ? `Conflict Severity: ${claim.conflictPercentage}%` : ''}
+                        Status: <b style="color:${statusColor}">${claim.status}</b><br/>
+                        ${claim.status === 'Reserved Violation' ? '<span style="color:#dc2626">⚠ Claim rejected: Requested land falls within a legally protected Reserved Forest zone.</span>' : ''}
+                        ${claim.conflictPercentage > 0 && claim.status !== 'Reserved Violation' ? `Conflict Severity: ${claim.conflictPercentage}%` : ''}
                     `);
                 }
             });
@@ -218,7 +259,7 @@ const SpatialClaimLayer: React.FC<SpatialClaimLayerProps> = ({ onShapeDrawn, act
         return () => {
             layers.forEach(l => map.removeLayer(l));
         };
-    }, [map, zones, simulatedClaims, activeDistrict]);
+    }, [map, zones, reservedZones, simulatedClaims, activeDistrict]);
 
     return null; // This is a logic-only component injected into MapContainer
 };

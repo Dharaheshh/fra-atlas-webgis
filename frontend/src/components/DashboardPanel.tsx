@@ -39,6 +39,10 @@ const DashboardPanel: React.FC = () => {
     const [spatialAlert, setSpatialAlert] = useState<{ active: boolean; district: string; severity: number; id: string } | null>(null);
     const alertedClaimIdRef = useRef<string | null>(null);
 
+    // Phase 8: Reserved Forest Breach Alert State
+    const [reservedAlert, setReservedAlert] = useState<{ district: string; id: string } | null>(null);
+    const alertedReservedIdRef = useRef<string | null>(null);
+
     const fetchAnalytics = () => {
         axios.get('http://localhost:5000/api/simulation/analytics')
             .then(response => {
@@ -74,6 +78,18 @@ const DashboardPanel: React.FC = () => {
             } else {
                 alertedClaimIdRef.current = null;
                 setSpatialAlert(null);
+            }
+
+            // Phase 8: Reserved Forest Violation Detection
+            const reservedViolationClaim = claims.find((c: any) => c.status === "Reserved Violation");
+            if (reservedViolationClaim) {
+                if (alertedReservedIdRef.current !== reservedViolationClaim.claimId) {
+                    alertedReservedIdRef.current = reservedViolationClaim.claimId;
+                    setReservedAlert({ district: reservedViolationClaim.district, id: reservedViolationClaim.claimId });
+                }
+            } else {
+                alertedReservedIdRef.current = null;
+                setReservedAlert(null);
             }
         } catch (e) { /* ignore silently in polling */ }
     }
@@ -143,7 +159,26 @@ const DashboardPanel: React.FC = () => {
 
                 <div className="p-5 flex-1 flex flex-col gap-6">
 
-                    {/* Phase 6 Spatial Conflict Auto-Trigger Alert */}
+                    {/* Phase 8: Reserved Forest Breach Alert - Highest Priority */}
+                    {reservedAlert && (
+                        <div className="bg-stone-900 text-white p-4 rounded-xl shadow-lg border border-stone-700 animate-in slide-in-from-top-4 relative overflow-hidden flex items-center gap-3">
+                            <div className="absolute top-0 right-0 p-2 opacity-10">
+                                <ShieldAlert className="w-24 h-24" />
+                            </div>
+                            <ShieldAlert className="w-8 h-8 shrink-0 text-amber-400" />
+                            <div>
+                                <h3 className="font-bold text-base uppercase tracking-wider mb-0.5 text-amber-400">🔒 Reserved Forest Breach</h3>
+                                <p className="text-sm font-medium text-stone-200">
+                                    Prohibited claim in <span className="text-white font-bold bg-stone-700 px-1.5 py-0.5 rounded">{reservedAlert.district}</span>
+                                </p>
+                                <p className="text-xs text-stone-400 mt-1">
+                                    ⚠ Immediate Review Required — Claim auto-rejected under FRA provisions.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Phase 6 Spatial Conflict Alert */}
                     {spatialAlert && spatialAlert.active && (
                         <div className="bg-red-600 text-white p-4 rounded-xl shadow-lg border border-red-700 animate-in slide-in-from-top-4 relative overflow-hidden flex items-center gap-3">
                             <div className="absolute top-0 right-0 p-2 opacity-10">

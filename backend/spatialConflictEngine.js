@@ -7,11 +7,20 @@ const claimsStore = require('./claimsStore');
 const ZONES_FILE = path.join(__dirname, 'data', 'forestZones.geojson');
 let forestZones = { type: "FeatureCollection", features: [] };
 
+// Phase 8: Load reserved forests
+const RESERVED_FILE = path.join(__dirname, 'data', 'reservedForests.geojson');
+let reservedForests = { type: "FeatureCollection", features: [] };
+
 try {
     const rawData = fs.readFileSync(ZONES_FILE, 'utf-8');
     forestZones = JSON.parse(rawData);
+
+    if (fs.existsSync(RESERVED_FILE)) {
+        const rawResData = fs.readFileSync(RESERVED_FILE, 'utf-8');
+        reservedForests = JSON.parse(rawResData);
+    }
 } catch (err) {
-    console.error("Error reading forestZones.geojson:", err);
+    console.error("Error reading geojson files:", err);
 }
 
 /**
@@ -57,6 +66,19 @@ function calculateSpatialConflict(drawnFeature, district) {
                 conflictSeverity: 100, // 100% invalid location
                 reason: "Polygon falls completely outside the designated district forest zone."
             };
+        }
+        // 3.5 Phase 8: Reserved Forest Sub-Zone Absolute Constraint
+        const targetReserved = reservedForests.features.find(f => f.properties.district === district);
+        if (targetReserved) {
+            const reservedIntersection = turf.intersect(turf.featureCollection([drawnFeature, targetReserved]));
+            if (reservedIntersection) {
+                // Return immediately - skip normal logic
+                return {
+                    status: "Reserved Violation",
+                    conflictSeverity: 100, // Hardcoded 100 per instruction
+                    reason: "Claim rejected: Requested land falls within a legally protected Reserved Forest zone."
+                };
+            }
         }
 
         // 4. Calculate overlap with existing APPROVED claims natively via geometries
