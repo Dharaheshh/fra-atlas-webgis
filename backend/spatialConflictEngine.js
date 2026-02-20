@@ -187,5 +187,6 @@ function fallbackCalculateConflict(district, newAreaRequested) {
 
 module.exports = {
     calculateSpatialConflict,
-    forestZones
+    forestZones,
+    reservedForests
 };

@@ -119,8 +119,7 @@ app.get('/api/report/:district', async (req, res) => {
     try {
         const { district } = req.params;
 
-        // Fetch Analytics internally to get data for prompt
-        // Note: Using a minimal inline version of the analytics logic here to keep it self-contained
+        // Fetch static mock data
         const data = getMockData();
         const features = data.features || [];
 
@@ -137,6 +136,16 @@ app.get('/api/report/:district', async (req, res) => {
             }
         });
 
+        // Phase 8: Also pull simulated live claims from the claims store
+        const claimsStore = require('./claimsStore');
+        const simClaims = claimsStore.getClaims().filter(c => c.district === district);
+
+        simClaims.forEach(c => {
+            districtStats.total++;
+            if (c.status === 'Approved') districtStats.approved++;
+            else if (c.status === 'Flagged' || c.status === 'Reserved Violation' || c.status === 'Moderate Conflict') districtStats.conflicts++;
+        });
+
         if (districtStats.total === 0) {
             return res.json({ error: `No data found for district: ${district}` });
         }
@@ -144,7 +153,32 @@ app.get('/api/report/:district', async (req, res) => {
         const conflict_pct = (districtStats.conflicts / districtStats.total) * 100;
         const risk_level = conflict_pct <= 40 ? "Low" : (conflict_pct <= 70 ? "Moderate" : "High");
 
-        const prompt = `You are a governance compliance analyst under the Forest Rights Act.
+        // Phase 8: Detect Reserved Violations — these get a distinct legal prompt
+        const reservedViolations = simClaims.filter(c => c.status === 'Reserved Violation');
+        const hasReservedViolation = reservedViolations.length > 0;
+
+        let prompt;
+
+        if (hasReservedViolation) {
+            // Distinct legal notice prompt for Reserved Forest breaches
+            prompt = `You are a senior legal compliance officer under the Forest Rights Act (FRA) of India.
+
+A critical Reserved Forest boundary violation has been detected in district: ${district}.
+
+Reserved Forest Violation Count: ${reservedViolations.length}
+Total Claims in District: ${districtStats.total}
+Approved: ${districtStats.approved}
+Other Conflicts: ${districtStats.conflicts - reservedViolations.length}
+
+Reserved Forests are legally protected under Section 3 of the Indian Forest Act. Any encroachment is a cognizable offence.
+
+Write a strict formal legal notice summary.
+Emphasize the legal severity of Reserved Forest violations (NOT the same as administrative overlap conflicts).
+Recommend immediate administrative action: claim rejection, field inspection, and potential prosecution under IFA.
+Keep it concise and professional.`;
+        } else {
+            // Standard governance conflict prompt
+            prompt = `You are a governance compliance analyst under the Forest Rights Act.
 
 District: ${district}
 Total Claims: ${districtStats.total}
@@ -157,6 +191,7 @@ Write a professional administrative summary.
 Highlight risk level (${risk_level}).
 Provide policy recommendation.
 Keep it concise.`;
+        }
 
         // Local Ollama Call
         const response = await fetch('http://localhost:11434/api/generate', {
@@ -176,13 +211,14 @@ Keep it concise.`;
             return res.json({ error: `Local AI Generation Failed. Is Ollama running?` });
         }
 
-        res.json({ district, reportText: apiData.response });
+        res.json({ district, reportText: apiData.response, reportType: hasReservedViolation ? 'reserved_violation' : 'conflict' });
 
     } catch (err) {
         console.error("Internal Server Error calling Ollama Local API:", err);
         res.status(500).json({ error: "Failed to connect to local Ollama. Please ensure 'ollama serve' is running." });
     }
 });
+
 
 // --- PHASE 5: ISOLATED SIMULATION LAYER ---
 
@@ -195,6 +231,13 @@ const SIMULATION_DISTRICT_LIMIT_ACRES = 500;
  */
 app.get('/api/simulation/zones', (req, res) => {
     res.json(spatialEngine.forestZones);
+});
+
+/**
+ * Phase 8: Endpoint to serve reserved forest zones to the frontend Map
+ */
+app.get('/api/simulation/reserved-zones', (req, res) => {
+    res.json(spatialEngine.reservedForests);
 });
 
 /**
