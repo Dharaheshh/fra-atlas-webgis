@@ -37,7 +37,7 @@ const DashboardPanel: React.FC = () => {
 
     useEffect(() => {
         // Fetch analytics data
-        axios.get('http://localhost:5000/api/analytics')
+        axios.get('http://localhost:5000/api/simulation/analytics')
             .then(response => {
                 setData(response.data);
                 setLoading(false);

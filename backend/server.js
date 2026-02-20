@@ -195,4 +195,202 @@ Keep the output professional, objective, and no longer than 2-3 paragraphs.`;
     }
 });
 
+// --- PHASE 5: ISOLATED SIMULATION LAYER ---
+
+const claimsStore = require('./claimsStore');
+const SIMULATION_DISTRICT_LIMIT_ACRES = 500;
+
+/**
+ * Helper to calculate conflict severity against the static limit
+ */
+function calculateConflict(district, newAreaRequested) {
+    const allClaims = claimsStore.getClaims();
+
+    // Sum only Approved simulated claims in this district
+    let approvedArea = 0;
+    allClaims.forEach(c => {
+        if (c.district === district && c.status === "Approved") {
+            approvedArea += c.areaRequested;
+        }
+    });
+
+    const totalRequested = approvedArea + newAreaRequested;
+
+    if (totalRequested > SIMULATION_DISTRICT_LIMIT_ACRES) {
+        const excess = totalRequested - SIMULATION_DISTRICT_LIMIT_ACRES;
+        const conflictPercentage = (excess / SIMULATION_DISTRICT_LIMIT_ACRES) * 100;
+        return {
+            status: "Flagged",
+            conflictPercentage: parseFloat(conflictPercentage.toFixed(2))
+        };
+    } else {
+        return {
+            status: "Approved",
+            conflictPercentage: 0
+        };
+    }
+}
+
+// 1. Submit a new claim
+app.post('/api/simulation/claims/submit', (req, res) => {
+    try {
+        const { citizenName, district, areaRequested } = req.body;
+
+        if (!citizenName || !district || !areaRequested) {
+            return res.status(400).json({ error: "Missing required fields." });
+        }
+
+        // Run severity algorithm BEFORE adding to store
+        const severityResult = calculateConflict(district, Number(areaRequested));
+
+        const newClaim = claimsStore.addClaim({
+            citizenName,
+            district,
+            areaRequested,
+            status: severityResult.status,
+            conflictPercentage: severityResult.conflictPercentage
+        });
+
+        res.json({ message: "Claim processed", claim: newClaim });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 2. Get all simulated claims
+app.get('/api/simulation/claims', (req, res) => {
+    try {
+        res.json(claimsStore.getClaims());
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 3. Admin review a claim
+app.patch('/api/simulation/claims/:id/review', (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body; // "Approved" or "Rejected"
+
+        if (!["Approved", "Rejected"].includes(status)) {
+            return res.status(400).json({ error: "Invalid status update. Use 'Approved' or 'Rejected'." });
+        }
+
+        const updatedClaim = claimsStore.updateClaimStatus(id, status);
+        if (!updatedClaim) {
+            return res.status(404).json({ error: "Claim not found." });
+        }
+
+        res.json({ message: `Claim statused updated to ${status}`, claim: updatedClaim });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 4. Overloaded Analytics for the Simulation (Zero risk to existing logic)
+// To fulfill risk engine integration constraints without modifying the original logic,
+// we wrap the original logic block with our simulated data appended to it locally for this endpoint.
+app.get('/api/simulation/analytics', (req, res) => {
+    try {
+        // --- 1. Fetch exactly the same JSON as Phase 2
+        const mockData = getMockData();
+        const features = Array.from(mockData.features || []);
+
+        // --- 2. Inject Simulated Store Claims INTO the local features array memory mapping ---
+        const simulatedClaims = claimsStore.getClaims();
+        simulatedClaims.forEach(sim => {
+            // Map our store to the GeoJSON property format expected by the algorithm
+            // We do not add overlap polygons, we just flag it based on the algorithm req
+            features.push({
+                properties: {
+                    district: sim.district,
+                    status: sim.status,
+                    conflict_percentage: sim.conflictPercentage,
+                    // We map our "Flagged" status logic to a conflict Boolean for the algo
+                    overlap: sim.status === "Flagged" || sim.conflictPercentage > 0
+                }
+            });
+        });
+
+        // --- 3. EXACT RUN of Existing Risk Algorithm line-for-line ---
+        let total_claims = features.length;
+        let approved_claims = 0;
+        let pending_claims = 0;
+        let conflict_claims = 0;
+        let districts_data = {};
+
+        features.forEach(feature => {
+            const props = feature.properties || {};
+            const district = props.district || 'Unknown';
+            const status = props.status || 'Unknown';
+            const overlap = props.overlap || false;
+            const protectedZone = props.protected_zone || false;
+
+            // Global Counts
+            if (status === 'Approved') approved_claims++;
+            else if (status === 'Pending') pending_claims++;
+            else if (status === 'Conflict' || overlap || protectedZone) conflict_claims++;
+            else if (status === 'Flagged') conflict_claims++; // Add flagged logic locally
+
+            // Initialize district
+            if (!districts_data[district]) {
+                districts_data[district] = { total: 0, pending: 0, conflicts: 0, approved: 0 };
+            }
+
+            // District Counts
+            districts_data[district].total++;
+            if (status === 'Pending') districts_data[district].pending++;
+            else if (status === 'Approved') districts_data[district].approved++;
+
+            if (overlap || protectedZone || status === 'Conflict' || status === 'Flagged') {
+                districts_data[district].conflicts++;
+            }
+        });
+
+        // Calculate Risk Scores per district
+        let district_rankings = [];
+        for (const [name, stats] of Object.entries(districts_data)) {
+            if (stats.total === 0) continue;
+
+            const pending_pct = (stats.pending / stats.total) * 100;
+            const conflict_pct = (stats.conflicts / stats.total) * 100;
+
+            const risk_score = (pending_pct * 0.5) + (conflict_pct * 0.5);
+            let risk_level = "High";
+            if (risk_score <= 40) risk_level = "Low";
+            else if (risk_score <= 70) risk_level = "Moderate";
+
+            district_rankings.push({
+                district: name,
+                total_claims: stats.total,
+                pending: stats.pending,
+                conflicts: stats.conflicts,
+                risk_score: parseFloat(risk_score.toFixed(2)),
+                risk_level: risk_level
+            });
+        }
+
+        district_rankings.sort((a, b) => b.risk_score - a.risk_score);
+
+        res.json({
+            summary: {
+                total_claims,
+                approved_claims,
+                pending_claims,
+                conflict_claims,
+                approved_pct: total_claims ? parseFloat((approved_claims / total_claims * 100).toFixed(1)) : 0,
+                pending_pct: total_claims ? parseFloat((pending_claims / total_claims * 100).toFixed(1)) : 0
+            },
+            districts: district_rankings
+        });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- END ISOLATED SIMULATION LAYER ---
+
 app.listen(PORT, () => console.log(`🚀 Node & Express Server running on HTTP port ${PORT}`));
