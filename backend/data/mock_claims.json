@@ -1,0 +1,157 @@
+{
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [
+                            78.9629,
+                            20.5937
+                        ],
+                        [
+                            78.9729,
+                            20.5937
+                        ],
+                        [
+                            78.9729,
+                            20.6037
+                        ],
+                        [
+                            78.9629,
+                            20.6037
+                        ],
+                        [
+                            78.9629,
+                            20.5937
+                        ]
+                    ]
+                ]
+            },
+            "properties": {
+                "district": "Bastar",
+                "village": "Village A",
+                "status": "Approved",
+                "area": 120,
+                "overlap": false,
+                "protected_zone": false
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [
+                            78.9829,
+                            20.6137
+                        ],
+                        [
+                            78.9929,
+                            20.6137
+                        ],
+                        [
+                            78.9929,
+                            20.6237
+                        ],
+                        [
+                            78.9829,
+                            20.6237
+                        ],
+                        [
+                            78.9829,
+                            20.6137
+                        ]
+                    ]
+                ]
+            },
+            "properties": {
+                "district": "Bastar",
+                "village": "Village B",
+                "status": "Pending",
+                "area": 85,
+                "overlap": true,
+                "protected_zone": false
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [
+                            78.9429,
+                            20.5737
+                        ],
+                        [
+                            78.9529,
+                            20.5737
+                        ],
+                        [
+                            78.9529,
+                            20.5837
+                        ],
+                        [
+                            78.9429,
+                            20.5837
+                        ],
+                        [
+                            78.9429,
+                            20.5737
+                        ]
+                    ]
+                ]
+            },
+            "properties": {
+                "district": "Kandhamal",
+                "village": "Village C",
+                "status": "Conflict",
+                "area": 200,
+                "overlap": true,
+                "protected_zone": true
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [
+                            78.9229,
+                            20.6337
+                        ],
+                        [
+                            78.9429,
+                            20.6337
+                        ],
+                        [
+                            78.9429,
+                            20.6537
+                        ],
+                        [
+                            78.9229,
+                            20.6537
+                        ],
+                        [
+                            78.9229,
+                            20.6337
+                        ]
+                    ]
+                ]
+            },
+            "properties": {
+                "district": "Kandhamal",
+                "village": "Village D",
+                "status": "Protected",
+                "area": 500,
+                "overlap": false,
+                "protected_zone": true
+            }
+        }
+    ]
+}
