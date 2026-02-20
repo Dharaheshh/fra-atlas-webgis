@@ -156,7 +156,7 @@ const DashboardPanel: React.FC = () => {
                                     Overlap Severity: <span className="text-white font-bold bg-red-800/50 px-1.5 py-0.5 rounded">{spatialAlert.severity}%</span> in {spatialAlert.district}
                                 </p>
                                 <p className="text-xs text-red-200 mt-1 flex items-center gap-1">
-                                    <Sparkles className="w-3 h-3" /> Auto-triggering AI governance review...
+                                    <Sparkles className="w-3 h-3" /> Awaiting manual Local AI governance review...
                                 </p>
                             </div>
                         </div>
@@ -249,7 +249,7 @@ const DashboardPanel: React.FC = () => {
                                             key={idx}
                                             onClick={() => setSelectedDistrict(district.district)}
                                             className={`transition-colors cursor-pointer ${selectedDistrict === district.district ? 'bg-indigo-50/80 hover:bg-indigo-100/80 border-l-2 border-l-indigo-500' : 'hover:bg-slate-50 border-l-2 border-l-transparent'}`}
-                                            title={`Click to generate AI report for ${district.district}`}
+                                            title={`Click to generate Local LLM report for ${district.district}`}
                                         >
                                             <td className="px-4 py-3 font-medium text-slate-700 flex items-center gap-2">
                                                 {district.district}
@@ -280,14 +280,14 @@ const DashboardPanel: React.FC = () => {
 
                         <h3 className="text-sm font-bold text-indigo-900 mb-3 uppercase tracking-wider flex items-center gap-2">
                             <Sparkles className="w-4 h-4 text-purple-500" />
-                            AI Compliance Engine
+                            Local LLM Governance Engine
                         </h3>
 
                         {!selectedDistrict ? (
                             <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-indigo-100 rounded-lg bg-white/40">
                                 <FileText className="w-8 h-8 text-indigo-200 mb-2" />
                                 <p className="text-sm text-indigo-500 text-center font-medium">
-                                    Select a district from the risk table above<br />to generate a compliance summary.
+                                    Select a district from the risk table above<br />to generate an on-demand Llama3 summary.
                                 </p>
                             </div>
                         ) : (

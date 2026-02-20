@@ -114,14 +114,10 @@ app.get('/api/analytics', (req, res) => {
     }
 });
 
-// Phase 3: AI Report Endpoint using user's explicit setup
+// Phase 3 & 7: Local AI Report Endpoint using Ollama
 app.get('/api/report/:district', async (req, res) => {
     try {
         const { district } = req.params;
-
-        if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'your_gemini_api_key_here') {
-            return res.json({ error: "API key not valid. Please pass a valid API key in the backend/.env file." });
-        }
 
         // Fetch Analytics internally to get data for prompt
         // Note: Using a minimal inline version of the analytics logic here to keep it self-contained
@@ -133,8 +129,11 @@ app.get('/api/report/:district', async (req, res) => {
             const props = feature.properties || {};
             if (props.district === district) {
                 districtStats.total++;
+                if (props.status === 'Approved') districtStats.approved++;
                 if (props.status === 'Pending') districtStats.pending++;
-                if (props.overlap || props.protected_zone || props.status === 'Conflict') districtStats.conflicts++;
+                if (props.overlap || props.protected_zone || props.status === 'Conflict' || props.status === 'Flagged') {
+                    districtStats.conflicts++;
+                }
             }
         });
 
@@ -142,56 +141,46 @@ app.get('/api/report/:district', async (req, res) => {
             return res.json({ error: `No data found for district: ${district}` });
         }
 
-        const pending_pct = (districtStats.pending / districtStats.total) * 100;
         const conflict_pct = (districtStats.conflicts / districtStats.total) * 100;
-        const risk_score = parseFloat(((pending_pct * 0.5) + (conflict_pct * 0.5)).toFixed(2));
-        let risk_level = risk_score <= 40 ? "Low" : (risk_score <= 70 ? "Moderate" : "High");
+        const risk_level = conflict_pct <= 40 ? "Low" : (conflict_pct <= 70 ? "Moderate" : "High");
 
-        const prompt = `You are an expert governance compliance analyst under the Forest Rights Act (FRA).
-Generate a concise formal compliance summary using the following regional data:
+        const prompt = `You are a governance compliance analyst under the Forest Rights Act.
 
 District: ${district}
 Total Claims: ${districtStats.total}
-Conflicts (Overlaps/Protected Zones): ${districtStats.conflicts}
-Pending Claims: ${districtStats.pending}
-Calculated Risk Level: ${risk_level} (Score: ${risk_score})
+Approved: ${districtStats.approved}
+Pending: ${districtStats.pending}
+Flagged: ${districtStats.conflicts}
+Conflict Percentage: ${conflict_pct.toFixed(2)}%
 
-Please provide:
-1. A brief summary of the exact statistics above.
-2. The severity of the conflict risk.
-3. Actionable policy recommendations for administrative review.
+Write a professional administrative summary.
+Highlight risk level (${risk_level}).
+Provide policy recommendation.
+Keep it concise.`;
 
-Keep the output professional, objective, and no longer than 2-3 paragraphs.`;
-
-        // Exact User-Provided Fetch Code (with small adjustment to read GET req logic instead of POST prompt)
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }]
-                })
-            }
-        );
+        // Local Ollama Call
+        const response = await fetch('http://localhost:11434/api/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'llama3',
+                prompt: prompt,
+                stream: false
+            })
+        });
 
         const apiData = await response.json();
 
-        // Handle invalid API keys elegantly based on the structure they return
-        if (apiData.error) {
-            console.error("Gemini API Error:", JSON.stringify(apiData.error, null, 2));
-            return res.json({ error: `AI Generation Failed: ${apiData.error.code} ${apiData.error.message}` });
+        if (!response.ok || apiData.error) {
+            console.error("Ollama Local API Error:", JSON.stringify(apiData.error, null, 2));
+            return res.json({ error: `Local AI Generation Failed. Is Ollama running?` });
         }
 
-        const text =
-            apiData?.candidates?.[0]?.content?.parts?.[0]?.text ||
-            "No response from Gemini";
-
-        res.json({ district, reportText: text });
+        res.json({ district, reportText: apiData.response });
 
     } catch (err) {
-        console.error("Internal Server Error calling Gemini API:", err);
-        res.status(500).json({ error: "Internal Error calling Gemini API" });
+        console.error("Internal Server Error calling Ollama Local API:", err);
+        res.status(500).json({ error: "Failed to connect to local Ollama. Please ensure 'ollama serve' is running." });
     }
 });
 
